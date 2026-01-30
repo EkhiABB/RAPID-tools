@@ -1,0 +1,104 @@
+MODULE ModuleCircle(NOSTEPIN)
+    ! Proof that AI still panics when faced with real RAPID… human brain required here.
+    
+    RECORD rotation
+        num angle;
+        pos v;
+        pos euler;
+    ENDRECORD
+    
+    LOCAL CONST num EPS:=0.001;
+
+    FUNC robtarget InterpolateArc(robtarget startPoint,robtarget midPoint,robtarget endPoint,num fraction)
+        VAR pos points{3};
+        VAR robtarget targets{3};
+        VAR robtarget targetCenter;
+        VAR num radius;
+        VAR pos center;
+        VAR pos normal;
+        VAR num startEndAngle;
+        VAR num newAngle;
+        VAR robtarget arcPoint;
+        VAR pose poseCenter;
+        VAR pose poseNew;
+
+        targets:=[startPoint,midPoint,endPoint];
+        points:=[startPoint.trans,midPoint.trans,endPoint.trans];
+        FitCircle points,center,radius,normal;
+        targetCenter.trans:=center;
+        poseCenter:=DefFrame(targetCenter,startPoint,endPoint);
+        startEndAngle:=GetArcAngle(points{1},points{3},center);
+        newAngle:=startEndAngle*fraction;
+        poseNew:=PoseMult(poseCenter,[[0,0,0],OrientZYX(newAngle,0,0)]);
+        poseNew:=PoseMult(poseNew,[[radius,0,0],[1,0,0,0]]);
+        arcPoint.trans:=poseNew.trans;
+
+        arcPoint.rot:=InterpolateOrient(startPoint,endPoint,fraction);
+        arcPoint.robconf:=startPoint.robconf;
+        Return arcPoint;
+    ENDFUNC
+
+    LOCAL FUNC num GetArcAngle(pos start,pos end,pos center)
+        VAR pos v1;
+        VAR pos v2;
+        VAR num dot;
+        VAR pos cross;
+        VAR num crossmag;
+        v1:=start-center;
+        v2:=end-center;
+        dot:=DotProd(v1,v2);
+        cross:=CrossProd(v1,v2);
+        crossmag:=VectMagn(cross);
+        RETURN ATAN2(crossmag,dot);
+    ENDFUNC
+
+    LOCAL FUNC orient InterpolateOrient(robtarget startPoint,robtarget endPoint,num fraction)
+        VAR num nRotationLength;
+        VAR orient qDelta;
+        VAR rotation rDelta;
+        VAR pose poseDelta;
+        poseDelta:=PoseMult(PoseInv([[0,0,0],startPoint.rot]),[[0,0,0],endPoint.rot]);
+        qDelta:=poseDelta.rot;
+        rDelta:=GetRotation(qDelta);
+        nRotationLength:=VectMagn(rDelta.euler);
+        return startPoint.rot*SetQuat(fraction*rDelta.angle,rDelta.v);
+    ENDFUNC
+
+    LOCAL FUNC orient SetQuat(num Angle,pos Vector)
+        VAR orient q;
+        q.q1:=Cos(Angle/2);
+        q.q2:=Sin(Angle/2)*Vector.x;
+        q.q3:=Sin(Angle/2)*Vector.y;
+        q.q4:=Sin(Angle/2)*Vector.z;
+        RETURN q;
+    ENDFUNC
+
+    LOCAL FUNC rotation GetRotation(orient q)
+        VAR rotation rot;
+        rot.angle:=2*ACos(q.q1);
+        rot.v.x:=q.q2;
+        rot.v.y:=q.q3;
+        rot.v.z:=q.q4;
+        rot.v:=NormalVect(rot.v);
+        IF rot.v.z<0 THEN
+            rot.angle:=-rot.angle;
+            rot.v:=-1*rot.v;
+        ENDIF
+        rot.euler.x:=EulerZYX(\X,q);
+        rot.euler.y:=EulerZYX(\Y,q);
+        rot.euler.z:=EulerZYX(\Z,q);
+        RETURN rot;
+    ENDFUNC
+
+    LOCAL FUNC pos NormalVect(pos v)
+        VAR num norm;
+        VAR pos vNormal:=[0,0,1];
+        norm:=VectMagn(v);
+        IF norm>EPS THEN
+            vNormal:=(1/norm)*v;
+        ENDIF
+        RETURN vNormal;
+    ENDFUNC
+
+
+ENDMODULE
