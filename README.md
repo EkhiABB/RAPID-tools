@@ -40,10 +40,10 @@ ModuleValidMoveL :
 
 Provide function to verify if MoveL motion will result in joint limits or out of reach.
 Takes as input "from" position, "to" position, "tooldata" and "workobject" coordinate systems.
-It will compute line interpolation and verif at each step if there is a joint limit or out of reach position.
+It will compute line interpolation and verif at each step if there is a joint limit, out of reach or singularity position.
 Return TRUE is the MoveL is valid, FALSE otherwize.
 This is usefull to check in advance if e.g a calculated position is reachable in a linear motion.
-This function might take time for "long" distances.
+This function might take time for "long" distances, in that case it is recommended to increase interpolation step (0.1 mm / 0.1 deg default)
 
 Example usage : 
     
