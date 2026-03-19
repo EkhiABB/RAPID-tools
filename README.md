@@ -1,7 +1,10 @@
 # RAPID-tools
 list of several ABB RAPID functions
 
+------
+
 ModuleCircle :
+
 Provide function to interpolate a target on circle arc.
 Takes as input start target, mid target, end target, and fraction.
 It will return a new target at the fraction of the arc.
@@ -30,3 +33,47 @@ Example usage :
         Target_75:=InterpolateArc(Target_start,Target_cir,Target_end,0.75);
         !
     ENDPROC
+
+------
+
+ModuleValidMoveL :
+
+Provide function to verify if MoveL motion will result in joint limits or out of reach.
+Takes as input "from" position, "to" position, "tooldata" and "workobject" coordinate systems.
+It will compute line interpolation and verif at each step if there is a joint limit or out of reach position.
+Return TRUE is the MoveL is valid, FALSE otherwize.
+This is usefull to check in advance if e.g a calculated position is reachable in a linear motion.
+This function might take time for "long" distances.
+
+Example usage : 
+    
+    PERS robtarget p10:=[[0.281947,1.52626,12.7066],[0.861263,-0.0524068,-0.497248,-0.0906863],[-1,0,0,1],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget p20:=[[0.27012,1.52975,12.6802],[0.866025,-0.000000244,-0.5,0.000000264],[-1,0,0,1],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget p30:=[[0.270078861,1.529731591,12.680164984],[0.693371277,0.512056592,-0.411477477,-0.296176646],[-1,1,-2,1],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget p40:=[[10.889682783,651.437825272,15.266341984],[0.693371301,0.512056593,-0.411477427,-0.296176656],[0,1,0,1],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    
+    VAR bool bMoveLOk;
+    
+    PROC Main()
+        MoveJ p10,v100,fine,Tooldata_2_2\WObj:=Workobject_2;
+        bMoveLOk:=ValidMoveL(p10,p20,Tooldata_2_2,Workobject_2);
+        IF(bMoveLOk=TRUE) THEN
+            MoveL p20,v100,fine,Tooldata_2_2\WObj:=Workobject_2;
+        ELSE
+            MoveJ p20,v100,fine,Tooldata_2_2\WObj:=Workobject_2;
+        ENDIF
+        bMoveLOk:=ValidMoveL(p20,p30,Tooldata_2_2,Workobject_2);
+        IF(bMoveLOk=TRUE) THEN
+            MoveL p30,v100,fine,Tooldata_2_2\WObj:=Workobject_2;
+        ELSE
+            MoveJ p30,v100,fine,Tooldata_2_2\WObj:=Workobject_2;
+        ENDIF
+        bMoveLOk:=ValidMoveL(p30,p40,Tooldata_2_2,Workobject_2);
+        IF(bMoveLOk=TRUE) THEN
+            MoveL p40,v100,fine,Tooldata_2_2\WObj:=Workobject_2;
+        ELSE
+            MoveJ p40,v100,fine,Tooldata_2_2\WObj:=Workobject_2;
+        ENDIF
+        !
+    ENDPROC
+    
