@@ -1,0 +1,114 @@
+MODULE ModuleValidMoveL(SYSMODULE,NOSTEPIN)
+    ! Proof that AI still panics when faced with real RAPID… human brain required here.
+    
+    RECORD rotation
+        num angle;
+        pos v;
+        pos euler;
+    ENDRECORD
+
+    !linear step mm
+    LOCAL CONST num nStepLin:=0.1;
+    !rotation step deg
+    LOCAL CONST num nStepRot:=0.1;
+
+    LOCAL CONST num EPS:=0.001;
+    LOCAL VAR num nIpolScale;
+
+    LOCAL VAR robtarget robtLast:=[[477.28,-315.969,263.27],[0.0431375,0.0913222,-0.994634,0.0224328],[1,-1,0,4],[-135.388,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL VAR robtarget robt:=[[477.28,-315.969,263.27],[0.0431375,0.0913222,-0.994634,0.0224328],[1,-1,0,4],[-135.388,9E+09,9E+09,9E+09,9E+09,9E+09]];
+
+    LOCAL VAR num nIpolLin:=0;
+    LOCAL VAR num nIpolRot:=0;
+    LOCAL VAR num nTranslationLength;
+    LOCAL VAR num nRotationLength;
+    LOCAL VAR rotation rDelta;
+    LOCAL VAR pose poseDelta;
+
+
+    FUNC Bool ValidMoveL(robtarget FromPoint,robtarget ToPoint,PERS tooldata tool,PERS wobjdata wobj)
+        VAR bool bValidStart:=TRUE;
+        VAR bool bValidEnd:=TRUE;
+        VAR bool bValidLin:=TRUE;
+        VAR bool bValidRot:=TRUE;
+        bValidStart:=ValidTarget(FromPoint,tool,wobj);
+        bValidEnd:=ValidTarget(ToPoint,tool,wobj);
+        IF ((NOT bValidStart) OR (NOT bValidEnd)) RETURN FALSE;
+
+        poseDelta:=PoseMult(PoseInv([FromPoint.trans,FromPoint.rot]),[ToPoint.trans,ToPoint.rot]);
+        nTranslationLength:=VectMagn(poseDelta.trans);
+        rDelta:=GetRotation(poseDelta.rot);
+        nRotationLength:=VectMagn(rDelta.euler);
+        nIpolLin:=Trunc(nTranslationLength/nStepLin);
+        nIpolRot:=Trunc(nRotationLength/nStepRot);
+
+        robtLast:=FromPoint;
+        IF (nIpolLin>1 AND nTranslationLength>0) THEN
+            FOR I FROM 1 TO nIpolLin DO
+                robt:=robtLast;
+                nIpolScale:=(i*nStepLin)/nTranslationLength;
+                robt.trans:=FromPoint.trans+nIpolScale*poseDelta.trans;
+                robt.rot:=FromPoint.rot*SetQuat(nIpolScale*rDelta.angle,rDelta.v);
+                bValidLin:=ValidTarget(robt,tool,wobj);
+                IF (NOT bValidLin) RETURN FALSE;
+                robtLast:=robt;
+            ENDFOR
+        ENDIF
+        IF (nIpolRot>1 AND nRotationLength>0) THEN
+            FOR I FROM 1 TO nIpolRot DO
+                robt:=robtLast;
+                nIpolScale:=(i*nStepRot)/nRotationLength;
+                robt.trans:=FromPoint.trans+nIpolScale*poseDelta.trans;
+                robt.rot:=FromPoint.rot*SetQuat(nIpolScale*rDelta.angle,rDelta.v);
+                bValidRot:=ValidTarget(robt,tool,wobj);
+                IF (NOT bValidRot) RETURN FALSE;
+                robtLast:=robt;
+            ENDFOR
+        ENDIF
+        RETURN (bValidStart AND bValidEnd AND bValidLin AND bValidRot);
+    ENDFUNC
+
+    LOCAL FUNC bool ValidTarget(robtarget target,PERS tooldata tool,PERS wobjdata wobj)
+        VAR num jointError:=0;
+        VAR jointtarget joint;
+        joint:=CalcJointT(target,tool,\wobj:=wobj\ErrorNumber:=jointError);
+        RETURN (NOT (jointError=ERR_ROBLIMIT)) AND (NOT (jointError=ERR_OUTSIDE_REACH));
+    ENDFUNC
+
+    LOCAL FUNC pos NormalVect(pos v)
+        VAR num norm;
+        VAR pos vNormal:=[0,0,1];
+        norm:=VectMagn(v);
+        IF norm>EPS THEN
+            vNormal:=(1/norm)*v;
+        ENDIF
+        RETURN vNormal;
+    ENDFUNC
+
+    LOCAL FUNC orient SetQuat(num Angle,pos Vector)
+        VAR orient q;
+        q.q1:=Cos(Angle/2);
+        q.q2:=Sin(Angle/2)*Vector.x;
+        q.q3:=Sin(Angle/2)*Vector.y;
+        q.q4:=Sin(Angle/2)*Vector.z;
+        RETURN q;
+    ENDFUNC
+
+    LOCAL FUNC rotation GetRotation(orient q)
+        VAR rotation rot;
+        rot.angle:=2*ACos(q.q1);
+        rot.v.x:=q.q2;
+        rot.v.y:=q.q3;
+        rot.v.z:=q.q4;
+        rot.v:=NormalVect(rot.v);
+        IF rot.v.z<0 THEN
+            rot.angle:=-rot.angle;
+            rot.v:=-1*rot.v;
+        ENDIF
+        rot.euler.x:=EulerZYX(\X,q);
+        rot.euler.y:=EulerZYX(\Y,q);
+        rot.euler.z:=EulerZYX(\Z,q);
+        RETURN rot;
+    ENDFUNC
+
+ENDMODULE
